@@ -17,7 +17,7 @@ Nmap NSE script to discover KNX home automation gateways by sending multicast se
 ## Sample Output
 
 ```
-# knx-gateway-discover git:(master) ✗ nmap -e enp0s25 --script ./knx-gateway-discover.nse
+# nmap -e enp0s25 --script ./knx-gateway-discover.nse
 
 Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-07 00:39 CEST
 Pre-scan script results:
