@@ -17,21 +17,32 @@ Nmap NSE script to discover KNX home automation gateways by sending multicast se
 ## Sample Output
 
 ```
-# knx  nmap -e enp0s25 --script ./knx-gateway-discover.nse
+# knx-gateway-discover git:(master) ✗ nmap -e enp0s25 --script ./knx-gateway-discover.nse
 
-Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-05 23:01 CEST
+Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-07 00:39 CEST
 Pre-scan script results:
-| knx-gateway-discover:
+| knx-gateway-discover: 
 |   status: Found 2 KNX gateway(s)
-|   gateways:
-|
+|   gateways: 
+|     gateway2: 
+|       IP address: 192.168.178.20
+|       Port: 3671
+|       KNX address: 1.1.5
+|       
+|         services: 
+|           KNXnet/IP Core
+|           KNXnet/IP Device Management
+|           KNXnet/IP Tunnelling
+|     gateway1: 
 |       IP address: 192.168.178.11
 |       Port: 3671
 |       KNX address: 15.15.255
-|
-|       IP address: 192.168.178.20
-|       Port: 3671
-|_      KNX address: 1.1.5
+|       
+|         services: 
+|           KNXnet/IP Core
+|           KNXnet/IP Device Management
+|           KNXnet/IP Tunnelling
+|_          KNXnet/IP Object Server
 WARNING: No targets were specified, so 0 hosts scanned.
-Nmap done: 0 IP addresses (0 hosts up) scanned in 3.29 seconds
+Nmap done: 0 IP addresses (0 hosts up) scanned in 3.31 seconds
 ```
