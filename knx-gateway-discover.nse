@@ -11,11 +11,17 @@ local string = require "string"
 
 description = [[
 Discovers KNX gateways by sending a KNX Search Request to the multicast address
-224.0.23.12 on port 3671.
+224.0.23.12 including a UDP payload with destination port 3671. KNX gateways
+will respond with a KNX Search Response including various information about the
+gateway, such as KNX address and supported services.
 
 This script is heavily based on the llmnr-resolve.nse script, as it technicallly
 does the same thing. Credits go out to the author.
 ]]
+
+author = "Niklaus Schiess <nschiess@ernw.de>, Dominik Schneider <dschneider@ernw.de>"
+license = "Same as Nmap--See http://nmap.org/book/man-legal.html"
+categories = {"discovery", "safe", "broadcast"}
 
 prerule = function()
   if not nmap.is_privileged() then
@@ -24,10 +30,6 @@ prerule = function()
   end
   return true
 end
-
-author = "Niklaus Schiess <nschiess@ernw.de>, Dominik Schneider <dschneider@ernw.de>"
-license = "Same as Nmap--See http://nmap.org/book/man-legal.html"
-categories = {"discovery", "safe", "broadcast"}
 
 local knxServiceFamilies = {
   [0x02]="KNXnet/IP Core",
@@ -98,6 +100,7 @@ local parseKnxAddress = function(addr)
 end
 
 --- Parse a Search Response
+-- @param knxMessage Payload of captures UDP packet
 local knxParseSearchResponse = function(knxMessage)
   local _, knx_header_length =  bin.unpack('>C', knxMessage)
   local _, knx_protocol_version = bin.unpack('>C', knxMessage, _)
@@ -170,16 +173,18 @@ local knxParseSearchResponse = function(knxMessage)
 
       search_response.body.dib_supp_svc_families = {}
       for i=1, #knx_supp_svc_families do
-        search_response.body.dib_supp_svc_families[i] = knx_supp_svc_families[i]
+        search_response.body.dib_supp_svc_families[knx_supp_svc_families[i].service_id] = {}
+        search_response.body.dib_supp_svc_families[knx_supp_svc_families[i].service_id].version = knx_supp_svc_families[i].version
       end
     else
       search_response[1] = "IP address: "..knx_hpai_ip_address
       search_response[2] = "Port: "..knx_hpai_port
       search_response[3] = "KNX address: "..parseKnxAddress(knx_dib_knx_address)
-      search_response[4] = {}
-      search_response[4]['Supported Services'] = {}
+      search_response[4] = "Device MAC address: "..knx_dib_dev_mac
+      search_response[5] = "Device friendly name: "..knx_dib_dev_friendly_name
+      search_response['Supported Services'] = {}
       for i=1, #knx_supp_svc_families do
-        search_response[4]['Supported Services'][i] = knx_supp_svc_families[i].service_id
+        search_response['Supported Services'][i] = knx_supp_svc_families[i].service_id
       end
     end
 
@@ -187,7 +192,7 @@ local knxParseSearchResponse = function(knxMessage)
   end
 end
 
--- Listens for knx search responses
+--- Listens for knx search responses
 -- @param interface Network interface to listen on.
 -- @param timeout Maximum time to listen.
 -- @param result table to put responses into.
@@ -214,9 +219,9 @@ local knxListen = function(interface, timeout, result)
   condvar("signal")
 end
 
--- Returns the network interface used to send packets to a target host.
---@param target host to which the interface is used.
---@return interface Network interface used for target host.
+--- Returns the network interface used to send packets to a target host.
+-- @param target host to which the interface is used.
+-- @return interface Network interface used for target host.
 local getInterface = function(target)
   -- First, create dummy UDP connection to get interface
   local sock = nmap.new_socket()
