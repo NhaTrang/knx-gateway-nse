@@ -4,7 +4,7 @@ Nmap NSE script to discover KNX home automation gateways by sending multicast se
 
 Further information:
 * DIN EN 13321-2
-* http://www.knx.org/knx-en/index.php
+* http://www.knx.org/
 
 ## Usage
 
@@ -41,7 +41,6 @@ Pre-scan script results:
 |         KNXnet/IP Device Management
 |         KNXnet/IP Tunnelling
 |_        KNXnet/IP Object Server
-
 ```
 
 ### Debug
