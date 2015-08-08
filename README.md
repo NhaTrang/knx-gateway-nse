@@ -1,12 +1,50 @@
-# knx-gateway-discover
-
-Nmap NSE script to discover KNX home automation gateways by sending multicast search requests.
+# knx-gateway.nse
+Nmap NSE scripts to discover KNX home automation gateways via multicast and unicast methods.
 
 Further information:
 * DIN EN 13321-2
 * http://www.knx.org/
 
+## knx-gateway-info
+
 ## Usage
+
+```
+# nmap -sU -p3671 --script ./knx-gateway-info.nse 192.168.178.11
+```
+
+**Note**: Increase verbosity/debug to see full message contents:
+
+```
+# nmap -sU -p3671 -d --script ./knx-gateway-info.nse 192.168.178.11
+```
+
+## Sample Output
+
+```
+# nmap -sU -p3671 --script ./knx-gateway-info.nse 192.168.178.11
+
+Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-08 18:53 CEST
+Nmap scan report for 192.168.178.11
+Host is up (0.00047s latency).
+PORT     STATE         SERVICE
+3671/udp open|filtered efcp
+| knx-gateway-info:
+|   KNX address: 15.15.255
+|   Supported Services:
+|     KNXnet/IP Core
+|     KNXnet/IP Device Management
+|     KNXnet/IP Tunnelling
+|     KNXnet/IP Object Server
+|   Device friendly name: IP-Viewer
+|   Device multicast address: 0.0.0.0
+|_  Device serial number: 00EF2650065C
+MAC Address: 00:05:26:50:06:5C (Ipas Gmbh)
+```
+
+## knx-gateway-discover
+
+### Usage
 
 ```
 # nmap -e eth0 --script ./knx-gateway-discover.nse
@@ -22,9 +60,9 @@ The script supports the following `script-args`:
 * timeout: Defines how long the script waits for responses
 * newtargets: Add found gateways to target list
 
-## Sample Output
+### Sample Output
 
-### Default
+#### Default
 
 ```
 # nmap -e eth0 --script ./knx-gateway-discover.nse
@@ -44,7 +82,7 @@ Pre-scan script results:
 |_    Device friendly name: IP-Viewer  
 ```
 
-### Debug
+#### Debug
 
 ```
 # nmap -d -e eth0 --script ./knx-gateway-discover.nse
