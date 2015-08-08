@@ -6,6 +6,7 @@ local bit = require "bit"
 local packet = require "packet"
 local ipOps = require "ipOps"
 local string = require "string"
+local target = require "target"
 
 description = [[
 Discovers KNX gateways by sending a KNX Search Request to the multicast address
@@ -27,7 +28,8 @@ categories = {"discovery", "safe", "broadcast"}
 
 --
 --@args
--- knx-gateway-discover.timeout Max time to wait for a response. (default 3s)
+-- timeout Max time to wait for a response. (default 3s)
+-- newtargets Add found gateways to target list
 --
 --@usage
 -- nmap --script knx-gateway-discover -e eth0
@@ -35,19 +37,16 @@ categories = {"discovery", "safe", "broadcast"}
 --@output
 -- Pre-scan script results:
 -- | knx-gateway-discover:
--- |   Status: Found 1 KNX gateway(s)
--- |   Gateways:
--- |     Gateway1:
--- |       IP address: 192.168.178.11
--- |       Port: 3671
--- |       KNX address: 15.15.255
--- |       Device MAC address: 00052650065C
--- |       Device friendly name: IP-Viewer
--- |       Supported Services:
--- |         KNXnet/IP Core
--- |         KNXnet/IP Device Management
--- |         KNXnet/IP Tunnelling
--- |_        KNXnet/IP Object Server
+-- |   192.168.178.11:
+-- |     Device friendly name: IP-Viewer
+-- |     Device MAC address: 00052650065C
+-- |     KNX address: 15.15.255
+-- |     Supported Services:
+-- |       KNXnet/IP Core
+-- |       KNXnet/IP Device Management
+-- |       KNXnet/IP Tunnelling
+-- |       KNXnet/IP Object Server
+-- |_    Port: 3671
 --
 
 prerule = function()
@@ -175,27 +174,27 @@ local knxParseSearchResponse = function(knxMessage)
     local search_response = {}
     if nmap.debugging() > 0 then
       search_response.Header = {}
-      search_response.Header[1] = "Header length: "..knx_header_length
-      search_response.Header[2] = "Protocol version: "..knx_protocol_version
-      search_response.Header[3] = "Service type: SEARCH_RESPONSE (0x0202)"
-      search_response.Header[4] = "Total length: "..knx_total_length
+      search_response.Header["Header length"] = knx_header_length
+      search_response.Header["Protocol version"] = knx_protocol_version
+      search_response.Header["Service type"] = "SEARCH_RESPONSE (0x0202)"
+      search_response.Header["Total length"] = knx_total_length
 
       search_response.Body = {}
       search_response.Body.HPAI = {}
-      search_response.Body.HPAI[1] = "Protocol code: "..knx_hpai_protocol_code
-      search_response.Body.HPAI[2] = "IP address: "..knx_hpai_ip_address
-      search_response.Body.HPAI[3] = "Port: "..knx_hpai_port
+      search_response.Body.HPAI["Protocol code"] = knx_hpai_protocol_code
+      search_response.Body.HPAI["IP address"] = knx_hpai_ip_address
+      search_response.Body.HPAI["Port"] = knx_hpai_port
 
       search_response.Body.DIB_DEV_INFO = {}
-      search_response.Body.DIB_DEV_INFO[1] = "Description type: "..knx_dib_description_type
-      search_response.Body.DIB_DEV_INFO[2] = "KNX medium: "..knx_dib_knx_medium
-      search_response.Body.DIB_DEV_INFO[3] = "Device status: "..knx_dib_device_status
-      search_response.Body.DIB_DEV_INFO[4] = "KNX address: "..parseKnxAddress(knx_dib_knx_address)
-      search_response.Body.DIB_DEV_INFO[5] = "Project installation identifier: "..knx_dib_project_install_ident
-      search_response.Body.DIB_DEV_INFO[6] = "Decive serial: "..knx_dib_dev_serial
-      search_response.Body.DIB_DEV_INFO[7] = "Multicast address: "..ipOps.bin_to_ip(ipOps.hex_to_bin(knx_dib_dev_multicast_addr))
-      search_response.Body.DIB_DEV_INFO[8] = "Device MAC address: "..knx_dib_dev_mac
-      search_response.Body.DIB_DEV_INFO[9] = "Device friendly name: "..knx_dib_dev_friendly_name
+      search_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
+      search_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
+      search_response.Body.DIB_DEV_INFO["Device status"] = knx_dib_device_status
+      search_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
+      search_response.Body.DIB_DEV_INFO["Project installation identifier"] = knx_dib_project_install_ident
+      search_response.Body.DIB_DEV_INFO["Decive serial"] = knx_dib_dev_serial
+      search_response.Body.DIB_DEV_INFO["Multicast address"] = ipOps.bin_to_ip(ipOps.hex_to_bin(knx_dib_dev_multicast_addr))
+      search_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
+      search_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
 
       search_response.Body.DIB_SUPP_SVC_FAMILIES = {}
       for i=1, #knx_supp_svc_families do
@@ -203,11 +202,11 @@ local knxParseSearchResponse = function(knxMessage)
         search_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id].Version = knx_supp_svc_families[i].Version
       end
     else
-      search_response[1] = "IP address: "..knx_hpai_ip_address
-      search_response[2] = "Port: "..knx_hpai_port
-      search_response[3] = "KNX address: "..parseKnxAddress(knx_dib_knx_address)
-      search_response[4] = "Device MAC address: "..knx_dib_dev_mac
-      search_response[5] = "Device friendly name: "..knx_dib_dev_friendly_name
+      search_response["IP address"] = knx_hpai_ip_address
+      search_response["Port"] = knx_hpai_port
+      search_response["KNX address"] = parseKnxAddress(knx_dib_knx_address)
+      search_response["Device MAC address"] = knx_dib_dev_mac
+      search_response["Device friendly name"] = knx_dib_dev_friendly_name
       search_response['Supported Services'] = {}
       for i=1, #knx_supp_svc_families do
         search_response['Supported Services'][i] = knx_supp_svc_families[i].service_id
@@ -268,6 +267,15 @@ local getInterface = function(target)
   end
 end
 
+--- Make a dummy connection and return a free source port
+-- @param target host to which the interface is used.
+-- @return lport Local port which can be used in KNX messages.
+local getSourcePort = function(target)
+  local socket = nmap.new_socket()
+  local _, _ = socket:connect(target, "12345", "udp")
+  local _, _, lport, _, _ = socket:get_info()
+  return lport
+end
 
 action = function()
   local timeout = stdnse.parse_timespec(stdnse.get_script_args(SCRIPT_NAME .. ".timeout"))
@@ -275,7 +283,7 @@ action = function()
   local result, output = {}, {}
   local mcast = "224.0.23.12"
   local mport = 3671
-  local lport = 55772
+  local lport = getSourcePort(mcast)
 
   -- Check if a valid interface was provided
   local interface = nmap.get_interface()
@@ -303,11 +311,18 @@ action = function()
   -- Check responses
   if #result > 0 then
     local output = stdnse.output_table()
-    output.Status = 'Found '.. #result ..' KNX gateway(s)'
-    output.Gateways = {}
-
+    local gateway_ip
     for _, response in pairs(result) do
-      output.Gateways['Gateway'.._] = response
+      if nmap.debugging() > 0 then
+        gateway_ip = response.Body.HPAI["IP address"]
+      else
+        gateway_ip = response["IP address"]
+        response["IP address"] = nil
+      end
+      output[gateway_ip] = response
+      if target.ALLOW_NEW_TARGETS then
+        target.add(gateway_ip)
+      end
     end
 
     return output

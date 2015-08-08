@@ -18,6 +18,10 @@ Further information:
 # nmap -e eth0 -v -d --script ./knx-gateway-discover.nse
 ```
 
+The script supports the following `script-args`:
+* timeout: Defines how long the script waits for responses
+* newtargets: Add found gateways to target list
+
 ## Sample Output
 
 ### Default
@@ -25,22 +29,19 @@ Further information:
 ```
 # nmap -e eth0 --script ./knx-gateway-discover.nse
 
-Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-07 16:39 CEST
+Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-08 17:00 CEST
 Pre-scan script results:
 | knx-gateway-discover:
-|   Status: Found 1 KNX gateway(s)
-|   Gateways:
-|     Gateway1:
-|       IP address: 192.168.178.11
-|       Port: 3671
-|       KNX address: 15.15.255
-|       Device MAC address: 00052650065C
-|       Device friendly name: IP-Viewer
-|       Supported Services:
-|         KNXnet/IP Core
-|         KNXnet/IP Device Management
-|         KNXnet/IP Tunnelling
-|_        KNXnet/IP Object Server
+|   192.168.178.11:
+|     Port: 3671
+|     Supported Services:
+|       KNXnet/IP Core
+|       KNXnet/IP Device Management
+|       KNXnet/IP Tunnelling
+|       KNXnet/IP Object Server
+|     Device MAC address: 00052650065C
+|     KNX address: 15.15.255
+|_    Device friendly name: IP-Viewer  
 ```
 
 ### Debug
@@ -48,7 +49,7 @@ Pre-scan script results:
 ```
 # nmap -d -e eth0 --script ./knx-gateway-discover.nse
 
-Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-07 16:46 CEST
+Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-08 17:00 CEST
 PORTS: Using top 1000 ports found open (TCP:1000, UDP:0, SCTP:0)
 --------------- Timing report ---------------
   hostgroups: min 1, max 100000
@@ -63,51 +64,41 @@ NSE: Arguments from CLI:
 NSE: Loaded 1 scripts for scanning.
 NSE: Script Pre-scanning.
 NSE: Starting runlevel 1 (of 1) scan.
-Initiating NSE at 16:46
+Initiating NSE at 17:00
 NSE: Starting knx-gateway-discover.
 NSE: Finished knx-gateway-discover.
 NSE: Finished knx-gateway-discover.
-Completed NSE at 16:46, 3.06s elapsed
+Completed NSE at 17:01, 3.07s elapsed
 Pre-scan script results:
 | knx-gateway-discover:
-|   Status: Found 1 KNX gateway(s)
-|   Gateways:
-|     Gateway1:
-|       Body:
-|         DIB_DEV_INFO:
-|           Description type: Device Information
-|           KNX medium: KNX TP1
-|           Device status: 00
-|           KNX address: 15.15.255
-|           Project installation identifier: 0000
-|           Decive serial: 00EF2650065C
-|           Multicast address: 0.0.0.0
-|           Device MAC address: 00052650065C
-|           Device friendly name: IP-Viewer
-|         HPAI:
-|           Protocol code: 01
-|           IP address: 192.168.178.11
-|           Port: 3671
-|         DIB_SUPP_SVC_FAMILIES:
-|           KNXnet/IP Device Management:
-|             Version: 1
-|           KNXnet/IP Object Server:
-|             Version: 1
-|           KNXnet/IP Tunnelling:
-|             Version: 1
-|           KNXnet/IP Core:
-|             Version: 1
-|       Header:
-|         Header length: 6
-|         Protocol version: 16
-|         Service type: SEARCH_RESPONSE (0x0202)
-|_        Total length: 78
-NSE: Script Post-scanning.
-NSE: Starting runlevel 1 (of 1) scan.
-Initiating NSE at 16:46
-Completed NSE at 16:46, 0.00s elapsed
-Read from /usr/bin/../share/nmap: nmap-services.
-WARNING: No targets were specified, so 0 hosts scanned.
-Nmap done: 0 IP addresses (0 hosts up) scanned in 3.28 seconds
-           Raw packets sent: 0 (0B) | Rcvd: 0 (0B)
+|   192.168.178.11:
+|     Header:
+|       Protocol version: 16
+|       Header length: 6
+|       Service type: SEARCH_RESPONSE (0x0202)
+|       Total length: 78
+|     Body:
+|       HPAI:
+|         Port: 3671
+|         IP address: 192.168.178.11
+|         Protocol code: 01
+|       DIB_SUPP_SVC_FAMILIES:
+|         KNXnet/IP Core:
+|           Version: 1
+|         KNXnet/IP Object Server:
+|           Version: 1
+|         KNXnet/IP Device Management:
+|           Version: 1
+|         KNXnet/IP Tunnelling:
+|           Version: 1
+|       DIB_DEV_INFO:
+|         Decive serial: 00EF2650065C
+|         Device status: 00
+|         KNX address: 15.15.255
+|         KNX medium: KNX TP1
+|         Device friendly name: IP-Viewer
+|         Multicast address: 0.0.0.0
+|         Project installation identifier: 0000
+|         Device MAC address: 00052650065C
+|_        Description type: Device Information
 ```
