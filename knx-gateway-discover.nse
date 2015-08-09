@@ -38,15 +38,15 @@ categories = {"discovery", "safe", "broadcast"}
 -- Pre-scan script results:
 -- | knx-gateway-discover:
 -- |   192.168.178.11:
--- |     Device friendly name: IP-Viewer
--- |     Device MAC address: 00052650065C
+-- |     Port: 3671
 -- |     KNX address: 15.15.255
+-- |     Device MAC address: 00052650065C
+-- |     Device friendly name: IP-Viewer
 -- |     Supported Services:
 -- |       KNXnet/IP Core
 -- |       KNXnet/IP Device Management
 -- |       KNXnet/IP Tunnelling
--- |       KNXnet/IP Object Server
--- |_    Port: 3671
+-- |_      KNXnet/IP Object Server
 --
 
 prerule = function()
@@ -156,7 +156,7 @@ local knxParseSearchResponse = function(knxMessage)
   local _, knx_dib_dev_mac = bin.unpack('>H6', knxMessage, _)
   local _, knx_dib_dev_friendly_name = bin.unpack('>A30', knxMessage, _)
 
-  local knx_supp_svc_families = {}
+  local knx_supp_svc_families = stdnse.output_table()
   local _, knx_supp_svc_families_structure_length = bin.unpack('>C', knxMessage, _)
   local _, knx_supp_svc_families_description = bin.unpack('>C', knxMessage, _)
 
@@ -164,28 +164,28 @@ local knxParseSearchResponse = function(knxMessage)
     knx_supp_svc_families_description = knxDibDescriptionTypes[knx_supp_svc_families_description]
     for i=0,(knx_total_length-_),2 do
       local i = #knx_supp_svc_families+1
-      knx_supp_svc_families[i] = {}
+      knx_supp_svc_families[i] = stdnse.output_table()
       _, knx_supp_svc_families[i].service_id = bin.unpack('>C', knxMessage, _)
       knx_supp_svc_families[i].service_id = knxServiceFamilies[knx_supp_svc_families[i].service_id]
       _, knx_supp_svc_families[i].Version = bin.unpack('>C', knxMessage, _)
     end
 
     --Build a proper response table
-    local search_response = {}
+    local search_response = stdnse.output_table()
     if nmap.debugging() > 0 then
-      search_response.Header = {}
+      search_response.Header = stdnse.output_table()
       search_response.Header["Header length"] = knx_header_length
       search_response.Header["Protocol version"] = knx_protocol_version
       search_response.Header["Service type"] = "SEARCH_RESPONSE (0x0202)"
       search_response.Header["Total length"] = knx_total_length
 
-      search_response.Body = {}
-      search_response.Body.HPAI = {}
+      search_response.Body = stdnse.output_table()
+      search_response.Body.HPAI = stdnse.output_table()
       search_response.Body.HPAI["Protocol code"] = knx_hpai_protocol_code
       search_response.Body.HPAI["IP address"] = knx_hpai_ip_address
       search_response.Body.HPAI["Port"] = knx_hpai_port
 
-      search_response.Body.DIB_DEV_INFO = {}
+      search_response.Body.DIB_DEV_INFO = stdnse.output_table()
       search_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
       search_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
       search_response.Body.DIB_DEV_INFO["Device status"] = knx_dib_device_status
@@ -196,9 +196,9 @@ local knxParseSearchResponse = function(knxMessage)
       search_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
       search_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
 
-      search_response.Body.DIB_SUPP_SVC_FAMILIES = {}
+      search_response.Body.DIB_SUPP_SVC_FAMILIES = stdnse.output_table()
       for i=1, #knx_supp_svc_families do
-        search_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id] = {}
+        search_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id] = stdnse.output_table()
         search_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id].Version = knx_supp_svc_families[i].Version
       end
     else
@@ -280,7 +280,7 @@ end
 action = function()
   local timeout = stdnse.parse_timespec(stdnse.get_script_args(SCRIPT_NAME .. ".timeout"))
   timeout = (timeout or 3) * 1000
-  local result, output = {}, {}
+  local result = {}
   local mcast = "224.0.23.12"
   local mport = 3671
   local lport = getSourcePort(mcast)
@@ -325,6 +325,10 @@ action = function()
       end
     end
 
+    local sort_by_ip = function(a, b)
+      return ipOps.compare_ip (a, "lt", b)
+    end
+    table.sort(output, sort_by_ip)
     return output
   end
 end

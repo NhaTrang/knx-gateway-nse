@@ -22,15 +22,15 @@ portrule = shortport.portnumber(3671, "udp", {"open", "open|filtered"})
 --@output
 -- 3671/udp open|filtered efcp
 -- | knx-gateway-info:
+-- |   KNX address: 15.15.255
 -- |   Device serial number: 00EF2650065C
+-- |   Device multicast address: 0.0.0.0
+-- |   Device friendly name: IP-Viewer
 -- |   Supported Services:
 -- |     KNXnet/IP Core
 -- |     KNXnet/IP Device Management
 -- |     KNXnet/IP Tunnelling
--- |     KNXnet/IP Object Server
--- |   Device multicast address: 0.0.0.0
--- |   KNX address: 15.15.255
--- |_  Device friendly name: IP-Viewer
+-- |_    KNXnet/IP Object Server
 --
 
 local knxServiceFamilies = {
@@ -110,7 +110,7 @@ local knxParseDescriptionResponse = function(knxMessage)
   local _, knx_dib_dev_mac = bin.unpack('>H6', knxMessage, _)
   local _, knx_dib_dev_friendly_name = bin.unpack('>A30', knxMessage, _)
 
-  local knx_supp_svc_families = {}
+  local knx_supp_svc_families = stdnse.output_table()
   local _, knx_supp_svc_families_structure_length = bin.unpack('>C', knxMessage, _)
   local _, knx_supp_svc_families_description = bin.unpack('>C', knxMessage, _)
 
@@ -118,23 +118,23 @@ local knxParseDescriptionResponse = function(knxMessage)
     knx_supp_svc_families_description = knxDibDescriptionTypes[knx_supp_svc_families_description]
     for i=0,(knx_total_length-_),2 do
       local i = #knx_supp_svc_families+1
-      knx_supp_svc_families[i] = {}
+      knx_supp_svc_families[i] = stdnse.output_table()
       _, knx_supp_svc_families[i].service_id = bin.unpack('>C', knxMessage, _)
       knx_supp_svc_families[i].service_id = knxServiceFamilies[knx_supp_svc_families[i].service_id]
       _, knx_supp_svc_families[i].Version = bin.unpack('>C', knxMessage, _)
     end
 
     --Build a proper response table
-    local description_response = {}
+    local description_response = stdnse.output_table()
     if nmap.debugging() > 0 then
-      description_response.Header = {}
+      description_response.Header = stdnse.output_table()
       description_response.Header["Header length"] = knx_header_length
       description_response.Header["Protocol version"] = knx_protocol_version
       description_response.Header["Service type"] = "DESCRIPTION_RESPONSE (0x0204)"
       description_response.Header["Total length"] = knx_total_length
 
-      description_response.Body = {}
-      description_response.Body.DIB_DEV_INFO = {}
+      description_response.Body = stdnse.output_table()
+      description_response.Body.DIB_DEV_INFO = stdnse.output_table()
       description_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
       description_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
       description_response.Body.DIB_DEV_INFO["Device status"] = knx_dib_device_status
@@ -145,9 +145,9 @@ local knxParseDescriptionResponse = function(knxMessage)
       description_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
       description_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
 
-      description_response.Body.DIB_SUPP_SVC_FAMILIES = {}
+      description_response.Body.DIB_SUPP_SVC_FAMILIES = stdnse.output_table()
       for i=1, #knx_supp_svc_families do
-        description_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id] = {}
+        description_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id] = stdnse.output_table()
         description_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id].Version = knx_supp_svc_families[i].Version
       end
     else
