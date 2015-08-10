@@ -1,4 +1,4 @@
-# knx-gateway.nse
+# knx-gateway-nse
 Nmap NSE scripts to discover KNX home automation gateways via multicast and unicast methods.
 
 Further information:
