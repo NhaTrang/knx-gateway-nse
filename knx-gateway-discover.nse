@@ -222,7 +222,7 @@ end
 -- @param timeout Maximum time to listen.
 -- @param result table to put responses into.
 local knxListen = function(interface, timeout, ips, results)
-  local condvar = nmap.condvar(result)
+  local condvar = nmap.condvar(results)
   local start = nmap.clock_ms()
   local listener = nmap.new_socket()
   local status, l3data, _
@@ -239,7 +239,7 @@ local knxListen = function(interface, timeout, ips, results)
       -- Skip IP and UDP headers
       local knxMessage = string.sub(l3data, p.ip_hl*4 + 8 + 1)
       local ip, response = knxParseSearchResponse(knxMessage)
-      ips = [#ips+1] = ip
+      ips[#ips+1] = ip
       results[ip] = response
     end
   end
@@ -307,18 +307,18 @@ action = function()
   -- Send query
   knxSend(query, mcast, mport)
   -- Wait for listener thread to finish
-  local condvar = nmap.condvar(result)
+  local condvar = nmap.condvar(results)
   condvar("wait")
 
   -- Check responses
-  if #ips >0 and #results > 0 then
+  if #ips > 0 then
     local sort_by_ip = function(a, b)
       return ipOps.compare_ip(a, "lt", b)
     end
     table.sort(ips, sort_by_ip)
     local output = stdnse.output_table()
 
-    for i in 1, #ips do
+    for i=1, #ips do
       local ip = ips[i]
       output[ip] = results[ip]
 
