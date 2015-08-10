@@ -213,7 +213,7 @@ local knxParseSearchResponse = function(knxMessage)
       end
     end
 
-    return search_response
+    return knx_hpai_ip_address, search_response
   end
 end
 
@@ -221,7 +221,7 @@ end
 -- @param interface Network interface to listen on.
 -- @param timeout Maximum time to listen.
 -- @param result table to put responses into.
-local knxListen = function(interface, timeout, result)
+local knxListen = function(interface, timeout, ips, results)
   local condvar = nmap.condvar(result)
   local start = nmap.clock_ms()
   local listener = nmap.new_socket()
@@ -238,7 +238,9 @@ local knxListen = function(interface, timeout, result)
       local p = packet.Packet:new(l3data, #l3data)
       -- Skip IP and UDP headers
       local knxMessage = string.sub(l3data, p.ip_hl*4 + 8 + 1)
-      table.insert(result, knxParseSearchResponse(knxMessage))
+      local ip, response = knxParseSearchResponse(knxMessage)
+      ips = [#ips+1] = ip
+      results[ip] = response
     end
   end
   condvar("signal")
@@ -280,7 +282,7 @@ end
 action = function()
   local timeout = stdnse.parse_timespec(stdnse.get_script_args(SCRIPT_NAME .. ".timeout"))
   timeout = (timeout or 3) * 1000
-  local result = {}
+  local ips, results = {}, {}
   local mcast = "224.0.23.12"
   local mport = 3671
   local lport = getSourcePort(mcast)
@@ -297,7 +299,7 @@ action = function()
   end
 
   -- Launch listener thread
-  stdnse.new_thread(knxListen, interface, timeout, result)
+  stdnse.new_thread(knxListen, interface, timeout, ips, results)
   -- Craft raw query
   local query = knxQuery(interface.address, lport)
   -- Small sleep so the listener doesn't miss the response
@@ -309,26 +311,22 @@ action = function()
   condvar("wait")
 
   -- Check responses
-  if #result > 0 then
+  if #ips >0 and #results > 0 then
+    local sort_by_ip = function(a, b)
+      return ipOps.compare_ip(a, "lt", b)
+    end
+    table.sort(ips, sort_by_ip)
     local output = stdnse.output_table()
-    local gateway_ip
-    for _, response in pairs(result) do
-      if nmap.debugging() > 0 then
-        gateway_ip = response.Body.HPAI["IP address"]
-      else
-        gateway_ip = response["IP address"]
-        response["IP address"] = nil
-      end
-      output[gateway_ip] = response
+
+    for i in 1, #ips do
+      local ip = ips[i]
+      output[ip] = results[ip]
+
       if target.ALLOW_NEW_TARGETS then
-        target.add(gateway_ip)
+        target.add(ip)
       end
     end
 
-    local sort_by_ip = function(a, b)
-      return ipOps.compare_ip (a, "lt", b)
-    end
-    table.sort(output, sort_by_ip)
     return output
   end
 end
