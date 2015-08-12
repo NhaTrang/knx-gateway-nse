@@ -26,19 +26,23 @@ This script establishes a unicast connection to a specific device in order to re
 ```
 # nmap -sU -p3671 --script ./knx-gateway-info.nse 192.168.178.11
 
-Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-09 14:22 CEST
-Pre-scan script results:
-| knx-gateway-discover:
-|   192.168.178.11:
-|     Port: 3671
-|     KNX address: 15.15.255
-|     Device MAC address: 00052650065C
-|     Device friendly name: IP-Viewer
-|     Supported Services:
-|       KNXnet/IP Core
-|       KNXnet/IP Device Management
-|       KNXnet/IP Tunnelling
-|_      KNXnet/IP Object Server
+Starting Nmap 6.49SVN ( https://nmap.org ) at 2015-08-12 20:21 CEST
+Nmap scan report for 192.168.178.11
+Host is up (0.00042s latency).
+PORT     STATE         SERVICE
+3671/udp open|filtered efcp
+| knx-gateway-info:
+|   Body:
+|     DIB_DEV_INFO:
+|       KNX address: 15.15.255
+|       Decive serial: 00ef2650065c
+|       Multicast address: 0.0.0.0
+|       Device friendly name: IP-Viewer
+|     DIB_SUPP_SVC_FAMILIES:
+|       KNXnet/IP Core version 1
+|       KNXnet/IP Device Management version 1
+|       KNXnet/IP Tunnelling version 1
+|_      KNXnet/IP Object Server version 1
 ```
 
 ## knx-gateway-discover
@@ -68,19 +72,24 @@ The script supports the following `script-args`:
 ```
 # nmap -e eth0 --script ./knx-gateway-discover.nse
 
-Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-09 14:21 CEST
+Starting Nmap 6.49SVN ( https://nmap.org ) at 2015-08-12 20:19 CEST
 Pre-scan script results:
 | knx-gateway-discover:
 |   192.168.178.11:
-|     Port: 3671
-|     KNX address: 15.15.255
-|     Device MAC address: 00052650065C
-|     Device friendly name: IP-Viewer
-|     Supported Services:
-|       KNXnet/IP Core
-|       KNXnet/IP Device Management
-|       KNXnet/IP Tunnelling
-|_      KNXnet/IP Object Server
+|     Body:
+|       HPAI:
+|         Port: 3671
+|       DIB_DEV_INFO:
+|         KNX address: 15.15.255
+|         Decive serial: 00ef2650065c
+|         Multicast address: 0.0.0.0
+|         Device MAC address: 00:05:26:50:06:5c
+|         Device friendly name: IP-Viewer
+|       DIB_SUPP_SVC_FAMILIES:
+|         KNXnet/IP Core version 1
+|         KNXnet/IP Device Management version 1
+|         KNXnet/IP Tunnelling version 1
+|_        KNXnet/IP Object Server version 1
 ```
 
 #### Debug
@@ -88,7 +97,7 @@ Pre-scan script results:
 ```
 # nmap -d -e eth0 --script ./knx-gateway-discover.nse
 
-Starting Nmap 6.47SVN ( http://nmap.org ) at 2015-08-09 14:22 CEST
+Starting Nmap 6.49SVN ( https://nmap.org ) at 2015-08-12 20:20 CEST
 PORTS: Using top 1000 ports found open (TCP:1000, UDP:0, SCTP:0)
 --------------- Timing report ---------------
   hostgroups: min 1, max 100000
@@ -103,11 +112,12 @@ NSE: Arguments from CLI:
 NSE: Loaded 1 scripts for scanning.
 NSE: Script Pre-scanning.
 NSE: Starting runlevel 1 (of 1) scan.
-Initiating NSE at 14:22
+Initiating NSE at 20:20
 NSE: Starting knx-gateway-discover.
 NSE: Finished knx-gateway-discover.
 NSE: Finished knx-gateway-discover.
-Completed NSE at 14:22, 3.06s elapsed
+NSE: Finished knx-gateway-discover.
+Completed NSE at 20:20, 3.08s elapsed
 Pre-scan script results:
 | knx-gateway-discover:
 |   192.168.178.11:
@@ -127,17 +137,13 @@ Pre-scan script results:
 |         Device status: 00
 |         KNX address: 15.15.255
 |         Project installation identifier: 0000
-|         Decive serial: 00EF2650065C
+|         Decive serial: 00ef2650065c
 |         Multicast address: 0.0.0.0
-|         Device MAC address: 00052650065C
+|         Device MAC address: 00:05:26:50:06:5c
 |         Device friendly name: IP-Viewer
 |       DIB_SUPP_SVC_FAMILIES:
-|         KNXnet/IP Core:
-|           Version: 1
-|         KNXnet/IP Device Management:
-|           Version: 1
-|         KNXnet/IP Tunnelling:
-|           Version: 1
-|         KNXnet/IP Object Server:
-|_          Version: 1
+|         KNXnet/IP Core version 1
+|         KNXnet/IP Device Management version 1
+|         KNXnet/IP Tunnelling version 1
+|_        KNXnet/IP Object Server version 1
 ```

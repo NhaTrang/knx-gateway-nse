@@ -16,21 +16,23 @@ Further information:
 author = "Niklaus Schiess <nschiess@ernw.de>, Dominik Schneider <dschneider@ernw.de>"
 license = "Same as Nmap--See http://nmap.org/book/man-legal.html"
 categories = {"default", "discovery", "safe"}
-portrule = shortport.portnumber(3671, "udp", {"open", "open|filtered"})
+portrule = shortport.port_or_service(3671, "efcp", "udp")
 
 --
 --@output
 -- 3671/udp open|filtered efcp
 -- | knx-gateway-info:
--- |   KNX address: 15.15.255
--- |   Device serial number: 00EF2650065C
--- |   Device multicast address: 0.0.0.0
--- |   Device friendly name: IP-Viewer
--- |   Supported Services:
--- |     KNXnet/IP Core
--- |     KNXnet/IP Device Management
--- |     KNXnet/IP Tunnelling
--- |_    KNXnet/IP Object Server
+-- |   Body:
+-- |     DIB_DEV_INFO:
+-- |       KNX address: 15.15.255
+-- |       Decive serial: 00ef2650065c
+-- |       Multicast address: 0.0.0.0
+-- |       Device friendly name: IP-Viewer
+-- |     DIB_SUPP_SVC_FAMILIES:
+-- |       KNXnet/IP Core version 1
+-- |       KNXnet/IP Device Management version 1
+-- |       KNXnet/IP Tunnelling version 1
+-- |_      KNXnet/IP Object Server version 1
 --
 
 local knxServiceFamilies = {
@@ -102,67 +104,69 @@ local knxParseDescriptionResponse = function(knxMessage)
   knx_dib_description_type = knxDibDescriptionTypes[knx_dib_description_type]
   local _, knx_dib_knx_medium = bin.unpack('>C', knxMessage, _)
   knx_dib_knx_medium = knxMediumTypes[knx_dib_knx_medium]
-  local _, knx_dib_device_status = bin.unpack('>H1', knxMessage, _)
+  local _, knx_dib_device_status = bin.unpack('>A1', knxMessage, _)
   local _, knx_dib_knx_address = bin.unpack('>S', knxMessage, _)
-  local _, knx_dib_project_install_ident = bin.unpack('>H2', knxMessage, _)
-  local _, knx_dib_dev_serial = bin.unpack('>H6', knxMessage, _)
-  local _, knx_dib_dev_multicast_addr = bin.unpack('>H4', knxMessage, _)
-  local _, knx_dib_dev_mac = bin.unpack('>H6', knxMessage, _)
+  local _, knx_dib_project_install_ident = bin.unpack('>A2', knxMessage, _)
+  local _, knx_dib_dev_serial = bin.unpack('>A6', knxMessage, _)
+  local _, knx_dib_dev_multicast_addr = bin.unpack('>A4', knxMessage, _)
+  knx_dib_dev_multicast_addr = ipOps.str_to_ip(knx_dib_dev_multicast_addr)
+  local _, knx_dib_dev_mac = bin.unpack('>A6', knxMessage, _)
+  knx_dib_dev_mac = stdnse.format_mac(knx_dib_dev_mac)
   local _, knx_dib_dev_friendly_name = bin.unpack('>A30', knxMessage, _)
 
-  local knx_supp_svc_families = stdnse.output_table()
+  local knx_supp_svc_families = {}
   local _, knx_supp_svc_families_structure_length = bin.unpack('>C', knxMessage, _)
   local _, knx_supp_svc_families_description = bin.unpack('>C', knxMessage, _)
+  knx_supp_svc_families_description = knxDibDescriptionTypes[knx_supp_svc_families_description] or knx_supp_svc_families_description
 
-  if knx_supp_svc_families_description == 0x02 then -- SUPP_SVC_FAMILIES
-    knx_supp_svc_families_description = knxDibDescriptionTypes[knx_supp_svc_families_description]
-    for i=0,(knx_total_length-_),2 do
-      local i = #knx_supp_svc_families+1
-      knx_supp_svc_families[i] = stdnse.output_table()
-      _, knx_supp_svc_families[i].service_id = bin.unpack('>C', knxMessage, _)
-      knx_supp_svc_families[i].service_id = knxServiceFamilies[knx_supp_svc_families[i].service_id]
-      _, knx_supp_svc_families[i].Version = bin.unpack('>C', knxMessage, _)
+  local fam_meta = {
+    __tostring = function (self)
+      return ("%s version %d"):format(
+        knxServiceFamilies[self.service_id] or self.service_id,
+        self.Version
+        )
     end
+  }
 
-    --Build a proper response table
-    local description_response = stdnse.output_table()
-    if nmap.debugging() > 0 then
-      description_response.Header = stdnse.output_table()
-      description_response.Header["Header length"] = knx_header_length
-      description_response.Header["Protocol version"] = knx_protocol_version
-      description_response.Header["Service type"] = "DESCRIPTION_RESPONSE (0x0204)"
-      description_response.Header["Total length"] = knx_total_length
-
-      description_response.Body = stdnse.output_table()
-      description_response.Body.DIB_DEV_INFO = stdnse.output_table()
-      description_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
-      description_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
-      description_response.Body.DIB_DEV_INFO["Device status"] = knx_dib_device_status
-      description_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
-      description_response.Body.DIB_DEV_INFO["Project installation identifier"] = knx_dib_project_install_ident
-      description_response.Body.DIB_DEV_INFO["Decive serial"] = knx_dib_dev_serial
-      description_response.Body.DIB_DEV_INFO["Multicast address"] = ipOps.bin_to_ip(ipOps.hex_to_bin(knx_dib_dev_multicast_addr))
-      description_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
-      description_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
-
-      description_response.Body.DIB_SUPP_SVC_FAMILIES = stdnse.output_table()
-      for i=1, #knx_supp_svc_families do
-        description_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id] = stdnse.output_table()
-        description_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id].Version = knx_supp_svc_families[i].Version
-      end
-    else
-      description_response["KNX address"] = parseKnxAddress(knx_dib_knx_address)
-      description_response["Device serial number"] = knx_dib_dev_serial
-      description_response['Device multicast address'] = ipOps.bin_to_ip(ipOps.hex_to_bin(knx_dib_dev_multicast_addr))
-      description_response["Device friendly name"] = knx_dib_dev_friendly_name
-      description_response['Supported Services'] = {}
-      for i=1, #knx_supp_svc_families do
-        description_response['Supported Services'][i] = knx_supp_svc_families[i].service_id
-      end
-    end
-
-    return description_response
+  for i=0,(knx_total_length-_),2 do
+    local family = {}
+    _, family.service_id, family.Version = bin.unpack('CC', knxMessage, _)
+    setmetatable(family, fam_meta)
+    knx_supp_svc_families[#knx_supp_svc_families+1] = family
   end
+
+  --Build a proper response table
+  local description_response = stdnse.output_table()
+  if nmap.debugging() > 0 then
+    description_response.Header = stdnse.output_table()
+    description_response.Header["Header length"] = knx_header_length
+    description_response.Header["Protocol version"] = knx_protocol_version
+    description_response.Header["Service type"] = "DESCRIPTION_RESPONSE (0x0204)"
+    description_response.Header["Total length"] = knx_total_length
+
+    description_response.Body = stdnse.output_table()
+    description_response.Body.DIB_DEV_INFO = stdnse.output_table()
+    description_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
+    description_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
+    description_response.Body.DIB_DEV_INFO["Device status"] = stdnse.tohex(knx_dib_device_status)
+    description_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
+    description_response.Body.DIB_DEV_INFO["Project installation identifier"] = stdnse.tohex(knx_dib_project_install_ident)
+    description_response.Body.DIB_DEV_INFO["Decive serial"] = stdnse.tohex(knx_dib_dev_serial)
+    description_response.Body.DIB_DEV_INFO["Multicast address"] = knx_dib_dev_multicast_addr
+    description_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
+    description_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
+    description_response.Body.DIB_SUPP_SVC_FAMILIES = knx_supp_svc_families
+  else
+    description_response.Body = stdnse.output_table()
+    description_response.Body.DIB_DEV_INFO = stdnse.output_table()
+    description_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
+    description_response.Body.DIB_DEV_INFO["Decive serial"] = stdnse.tohex(knx_dib_dev_serial)
+    description_response.Body.DIB_DEV_INFO["Multicast address"] = knx_dib_dev_multicast_addr
+    description_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
+    description_response.Body.DIB_SUPP_SVC_FAMILIES = knx_supp_svc_families
+  end
+
+  return description_response
 end
 
 action = function(host, port)

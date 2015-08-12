@@ -38,20 +38,25 @@ categories = {"discovery", "safe", "broadcast"}
 -- Pre-scan script results:
 -- | knx-gateway-discover:
 -- |   192.168.178.11:
--- |     Port: 3671
--- |     KNX address: 15.15.255
--- |     Device MAC address: 00052650065C
--- |     Device friendly name: IP-Viewer
--- |     Supported Services:
--- |       KNXnet/IP Core
--- |       KNXnet/IP Device Management
--- |       KNXnet/IP Tunnelling
--- |_      KNXnet/IP Object Server
+-- |     Body:
+-- |       HPAI:
+-- |         Port: 3671
+-- |       DIB_DEV_INFO:
+-- |         KNX address: 15.15.255
+-- |         Decive serial: 00ef2650065c
+-- |         Multicast address: 0.0.0.0
+-- |         Device MAC address: 00:05:26:50:06:5c
+-- |         Device friendly name: IP-Viewer
+-- |       DIB_SUPP_SVC_FAMILIES:
+-- |         KNXnet/IP Core version 1
+-- |         KNXnet/IP Device Management version 1
+-- |         KNXnet/IP Tunnelling version 1
+-- |_        KNXnet/IP Object Server version 1
 --
 
 prerule = function()
   if not nmap.is_privileged() then
-    stdnse.verbose1("not running due to lack of privileges.")
+    stdnse.verbose1("Not running due to lack of privileges.")
     return false
   end
   return true
@@ -127,7 +132,7 @@ end
 
 --- Parse a Search Response
 -- @param knxMessage Payload of captures UDP packet
-local knxParseSearchResponse = function(knxMessage)
+local knxParseSearchResponse = function(ips, results, knxMessage)
   local _, knx_header_length =  bin.unpack('>C', knxMessage)
   local _, knx_protocol_version = bin.unpack('>C', knxMessage, _)
   local _, knx_service_type = bin.unpack('>S', knxMessage, _)
@@ -138,9 +143,9 @@ local knxParseSearchResponse = function(knxMessage)
   end
 
   local _, knx_hpai_structure_length = bin.unpack('>C', knxMessage, _)
-  local _, knx_hpai_protocol_code = bin.unpack('>H1', knxMessage, _)
-  local _, knx_hpai_ip_address = bin.unpack('>H4', knxMessage, _)
-  knx_hpai_ip_address = ipOps.bin_to_ip(ipOps.hex_to_bin(knx_hpai_ip_address))
+  local _, knx_hpai_protocol_code = bin.unpack('>A1', knxMessage, _)
+  local _, knx_hpai_ip_address = bin.unpack('>A4', knxMessage, _)
+  knx_hpai_ip_address = ipOps.str_to_ip(knx_hpai_ip_address)
   local _, knx_hpai_port = bin.unpack('>S', knxMessage, _)
 
   local _, knx_dib_structure_length = bin.unpack('>C', knxMessage, _)
@@ -148,86 +153,91 @@ local knxParseSearchResponse = function(knxMessage)
   knx_dib_description_type = knxDibDescriptionTypes[knx_dib_description_type]
   local _, knx_dib_knx_medium = bin.unpack('>C', knxMessage, _)
   knx_dib_knx_medium = knxMediumTypes[knx_dib_knx_medium]
-  local _, knx_dib_device_status = bin.unpack('>H1', knxMessage, _)
+  local _, knx_dib_device_status = bin.unpack('>A1', knxMessage, _)
   local _, knx_dib_knx_address = bin.unpack('>S', knxMessage, _)
-  local _, knx_dib_project_install_ident = bin.unpack('>H2', knxMessage, _)
-  local _, knx_dib_dev_serial = bin.unpack('>H6', knxMessage, _)
-  local _, knx_dib_dev_multicast_addr = bin.unpack('>H4', knxMessage, _)
-  local _, knx_dib_dev_mac = bin.unpack('>H6', knxMessage, _)
+  local _, knx_dib_project_install_ident = bin.unpack('>A2', knxMessage, _)
+  local _, knx_dib_dev_serial = bin.unpack('>A6', knxMessage, _)
+  local _, knx_dib_dev_multicast_addr = bin.unpack('>A4', knxMessage, _)
+  knx_dib_dev_multicast_addr = ipOps.str_to_ip(knx_dib_dev_multicast_addr)
+  local _, knx_dib_dev_mac = bin.unpack('>A6', knxMessage, _)
+  knx_dib_dev_mac = stdnse.format_mac(knx_dib_dev_mac)
   local _, knx_dib_dev_friendly_name = bin.unpack('>A30', knxMessage, _)
 
-  local knx_supp_svc_families = stdnse.output_table()
+  local knx_supp_svc_families = {}
   local _, knx_supp_svc_families_structure_length = bin.unpack('>C', knxMessage, _)
   local _, knx_supp_svc_families_description = bin.unpack('>C', knxMessage, _)
+  knx_supp_svc_families_description = knxDibDescriptionTypes[knx_supp_svc_families_description] or knx_supp_svc_families_description
 
-  if knx_supp_svc_families_description == 0x02 then -- SUPP_SVC_FAMILIES
-    knx_supp_svc_families_description = knxDibDescriptionTypes[knx_supp_svc_families_description]
-    for i=0,(knx_total_length-_),2 do
-      local i = #knx_supp_svc_families+1
-      knx_supp_svc_families[i] = stdnse.output_table()
-      _, knx_supp_svc_families[i].service_id = bin.unpack('>C', knxMessage, _)
-      knx_supp_svc_families[i].service_id = knxServiceFamilies[knx_supp_svc_families[i].service_id]
-      _, knx_supp_svc_families[i].Version = bin.unpack('>C', knxMessage, _)
+  local fam_meta = {
+    __tostring = function (self)
+      return ("%s version %d"):format(
+        knxServiceFamilies[self.service_id] or self.service_id,
+        self.Version
+        )
     end
+  }
 
-    --Build a proper response table
-    local search_response = stdnse.output_table()
-    if nmap.debugging() > 0 then
-      search_response.Header = stdnse.output_table()
-      search_response.Header["Header length"] = knx_header_length
-      search_response.Header["Protocol version"] = knx_protocol_version
-      search_response.Header["Service type"] = "SEARCH_RESPONSE (0x0202)"
-      search_response.Header["Total length"] = knx_total_length
-
-      search_response.Body = stdnse.output_table()
-      search_response.Body.HPAI = stdnse.output_table()
-      search_response.Body.HPAI["Protocol code"] = knx_hpai_protocol_code
-      search_response.Body.HPAI["IP address"] = knx_hpai_ip_address
-      search_response.Body.HPAI["Port"] = knx_hpai_port
-
-      search_response.Body.DIB_DEV_INFO = stdnse.output_table()
-      search_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
-      search_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
-      search_response.Body.DIB_DEV_INFO["Device status"] = knx_dib_device_status
-      search_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
-      search_response.Body.DIB_DEV_INFO["Project installation identifier"] = knx_dib_project_install_ident
-      search_response.Body.DIB_DEV_INFO["Decive serial"] = knx_dib_dev_serial
-      search_response.Body.DIB_DEV_INFO["Multicast address"] = ipOps.bin_to_ip(ipOps.hex_to_bin(knx_dib_dev_multicast_addr))
-      search_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
-      search_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
-
-      search_response.Body.DIB_SUPP_SVC_FAMILIES = stdnse.output_table()
-      for i=1, #knx_supp_svc_families do
-        search_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id] = stdnse.output_table()
-        search_response.Body.DIB_SUPP_SVC_FAMILIES[knx_supp_svc_families[i].service_id].Version = knx_supp_svc_families[i].Version
-      end
-    else
-      search_response["IP address"] = knx_hpai_ip_address
-      search_response["Port"] = knx_hpai_port
-      search_response["KNX address"] = parseKnxAddress(knx_dib_knx_address)
-      search_response["Device MAC address"] = knx_dib_dev_mac
-      search_response["Device friendly name"] = knx_dib_dev_friendly_name
-      search_response['Supported Services'] = {}
-      for i=1, #knx_supp_svc_families do
-        search_response['Supported Services'][i] = knx_supp_svc_families[i].service_id
-      end
-    end
-
-    return knx_hpai_ip_address, search_response
+  for i=0,(knx_total_length-_),2 do
+    local family = {}
+    _, family.service_id, family.Version = bin.unpack('CC', knxMessage, _)
+    setmetatable(family, fam_meta)
+    knx_supp_svc_families[#knx_supp_svc_families+1] = family
   end
+
+  local search_response = stdnse.output_table()
+  if nmap.debugging() > 0 then
+    search_response.Header = stdnse.output_table()
+    search_response.Header["Header length"] = knx_header_length
+    search_response.Header["Protocol version"] = knx_protocol_version
+    search_response.Header["Service type"] = "SEARCH_RESPONSE (0x0202)"
+    search_response.Header["Total length"] = knx_total_length
+
+    search_response.Body = stdnse.output_table()
+    search_response.Body.HPAI = stdnse.output_table()
+    search_response.Body.HPAI["Protocol code"] = stdnse.tohex(knx_hpai_protocol_code)
+    search_response.Body.HPAI["IP address"] = knx_hpai_ip_address
+    search_response.Body.HPAI["Port"] = knx_hpai_port
+
+    search_response.Body.DIB_DEV_INFO = stdnse.output_table()
+    search_response.Body.DIB_DEV_INFO["Description type"] = knx_dib_description_type
+    search_response.Body.DIB_DEV_INFO["KNX medium"] = knx_dib_knx_medium
+    search_response.Body.DIB_DEV_INFO["Device status"] = stdnse.tohex(knx_dib_device_status)
+    search_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
+    search_response.Body.DIB_DEV_INFO["Project installation identifier"] = stdnse.tohex(knx_dib_project_install_ident)
+    search_response.Body.DIB_DEV_INFO["Decive serial"] = stdnse.tohex(knx_dib_dev_serial)
+    search_response.Body.DIB_DEV_INFO["Multicast address"] = knx_dib_dev_multicast_addr
+    search_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
+    search_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
+    search_response.Body.DIB_SUPP_SVC_FAMILIES = knx_supp_svc_families
+  else
+    search_response.Body = stdnse.output_table()
+    search_response.Body.HPAI = stdnse.output_table()
+    search_response.Body.HPAI["Port"] = knx_hpai_port
+
+    search_response.Body.DIB_DEV_INFO = stdnse.output_table()
+    search_response.Body.DIB_DEV_INFO["KNX address"] = parseKnxAddress(knx_dib_knx_address)
+    search_response.Body.DIB_DEV_INFO["Decive serial"] = stdnse.tohex(knx_dib_dev_serial)
+    search_response.Body.DIB_DEV_INFO["Multicast address"] = knx_dib_dev_multicast_addr
+    search_response.Body.DIB_DEV_INFO["Device MAC address"] = knx_dib_dev_mac
+    search_response.Body.DIB_DEV_INFO["Device friendly name"] = knx_dib_dev_friendly_name
+    search_response.Body.DIB_SUPP_SVC_FAMILIES = knx_supp_svc_families
+  end
+
+  ips[#ips+1] = knx_hpai_ip_address
+  results[knx_hpai_ip_address] = search_response
 end
 
 --- Listens for knx search responses
 -- @param interface Network interface to listen on.
 -- @param timeout Maximum time to listen.
--- @param result table to put responses into.
+-- @param ips Table to put IP addresses into.
+-- @param result Table to put responses into.
 local knxListen = function(interface, timeout, ips, results)
   local condvar = nmap.condvar(results)
   local start = nmap.clock_ms()
   local listener = nmap.new_socket()
+  local threads = {}
   local status, l3data, _
-
-  -- Packets that are sent to our UDP port number 3671
   local filter = 'dst host ' .. interface.address .. ' and udp src port 3671'
   listener:set_timeout(100)
   listener:pcap_open(interface.device, 1024, true, filter)
@@ -238,11 +248,19 @@ local knxListen = function(interface, timeout, ips, results)
       local p = packet.Packet:new(l3data, #l3data)
       -- Skip IP and UDP headers
       local knxMessage = string.sub(l3data, p.ip_hl*4 + 8 + 1)
-      local ip, response = knxParseSearchResponse(knxMessage)
-      ips[#ips+1] = ip
-      results[ip] = response
+      local co = stdnse.new_thread(knxParseSearchResponse, ips, results, knxMessage)
+      threads[co] = true;
     end
   end
+
+  repeat
+    for thread in pairs(threads) do
+      if coroutine.status(thread) == "dead" then threads[thread] = nil end
+    end
+    if ( next(threads) ) then
+      condvar "wait"
+    end
+  until next(threads) == nil;
   condvar("signal")
 end
 
